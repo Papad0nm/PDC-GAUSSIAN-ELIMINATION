@@ -2,46 +2,28 @@
 #include <vector>
 #include <cmath>
 #include <ctime>
-#include <iomanip>
 #include <omp.h>
 #include <mpi.h>
-#include <random>
-
 using namespace std;
 
-// Function to print matrix (for debugging small matrices)
-void printMatrix(const vector<vector<double>>& mat, int n, int m) {
-    if (n > 10) return; // Don't print large matrices
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            cout << fixed << setprecision(2) << mat[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n";
-}
-
-// Generate random matrix and vector for Ax = b system
+// Generate random matrix A and vector b
 void generateSystem(vector<vector<double>>& A, vector<double>& b, int n) {
-    random_device rd;
-    mt19937 gen(rd());
-    uniform_real_distribution<> dis(1.0, 10.0);
+    srand(time(0));
 
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            A[i][j] = dis(gen);
+            A[i][j] = (rand() % 100);
         }
-        b[i] = dis(gen);
+        b[i] = (rand() % 100) + 1.0;
     }
 }
 
-// ====================== SERIAL VERSION ======================
+// ==================== SERIAL IMPLEMENTATION ====================
 
-// Serial Gaussian Elimination with Partial Pivoting
-void gaussianEliminationSerial(vector<vector<double>>& A, vector<double>& b, int n) {
-    // Forward Elimination
+void serialGaussianElimination(vector<vector<double>>& A, vector<double>& b, int n) {
+    // Forward elimination
     for (int col = 0; col < n - 1; col++) {
-        // Find pivot (partial pivoting for stability)
+        // Find the largest element in current column (pivoting)
         int pivotRow = col;
         for (int row = col + 1; row < n; row++) {
             if (abs(A[row][col]) > abs(A[pivotRow][col])) {
@@ -53,44 +35,41 @@ void gaussianEliminationSerial(vector<vector<double>>& A, vector<double>& b, int
         swap(A[col], A[pivotRow]);
         swap(b[col], b[pivotRow]);
 
-        // Check for singular matrix
-        if (abs(A[col][col]) < 1e-10) {
-            cout << "Matrix is singular!\n";
+        // Check if matrix is singular
+        if (abs(A[col][col]) < 0.0000001) {
+            cout << "Matrix is singular!" << endl;
             return;
         }
 
-        // Elimination
+        // Eliminate column entries below pivot
         for (int row = col + 1; row < n; row++) {
             double factor = A[row][col] / A[col][col];
             for (int j = col; j < n; j++) {
-                A[row][j] -= factor * A[col][j];
+                A[row][j] = A[row][j] - factor * A[col][j];
             }
-            b[row] -= factor * b[col];
+            b[row] = b[row] - factor * b[col];
         }
     }
 }
 
-// Serial Back Substitution
-void backSubstitutionSerial(const vector<vector<double>>& A, const vector<double>& b,
+void serialBackSubstitution(vector<vector<double>>& A, vector<double>& b,
     vector<double>& x, int n) {
-    x.assign(n, 0.0);
-
+    // Solve from bottom to top
     for (int i = n - 1; i >= 0; i--) {
         x[i] = b[i];
         for (int j = i + 1; j < n; j++) {
-            x[i] -= A[i][j] * x[j];
+            x[i] = x[i] - A[i][j] * x[j];
         }
-        x[i] /= A[i][i];
+        x[i] = x[i] / A[i][i];
     }
 }
 
-// ====================== PARALLEL VERSION (OpenMP) ======================
+// ==================== OPENMP IMPLEMENTATION ====================
 
-// Parallel Gaussian Elimination with Partial Pivoting
-void gaussianEliminationParallel(vector<vector<double>>& A, vector<double>& b, int n) {
-    // Forward Elimination
+void openmpGaussianElimination(vector<vector<double>>& A, vector<double>& b, int n) {
+    // Forward elimination
     for (int col = 0; col < n - 1; col++) {
-        // Find pivot (sequential for simplicity)
+        // Find pivot (sequential - simpler to understand)
         int pivotRow = col;
         for (int row = col + 1; row < n; row++) {
             if (abs(A[row][col]) > abs(A[pivotRow][col])) {
@@ -102,70 +81,67 @@ void gaussianEliminationParallel(vector<vector<double>>& A, vector<double>& b, i
         swap(A[col], A[pivotRow]);
         swap(b[col], b[pivotRow]);
 
-        // Check for singular matrix
-        if (abs(A[col][col]) < 1e-10) {
-            cout << "Matrix is singular!\n";
+        if (abs(A[col][col]) < 0.0000001) {
+            cout << "Matrix is singular!" << endl;
             return;
         }
 
-        // Parallel Elimination: distribute row operations across threads
-#pragma omp parallel for schedule(dynamic)
+        // Parallel elimination using OpenMP
+#pragma omp parallel for
         for (int row = col + 1; row < n; row++) {
             double factor = A[row][col] / A[col][col];
             for (int j = col; j < n; j++) {
-                A[row][j] -= factor * A[col][j];
+                A[row][j] = A[row][j] - factor * A[col][j];
             }
-            b[row] -= factor * b[col];
+            b[row] = b[row] - factor * b[col];
         }
     }
 }
 
-// Parallel Back Substitution (limited parallelism - sequential dependency)
-void backSubstitutionParallel(const vector<vector<double>>& A, const vector<double>& b,
+void openmpBackSubstitution(vector<vector<double>>& A, vector<double>& b,
     vector<double>& x, int n) {
-    x.assign(n, 0.0);
-
+    // Back substitution (limited parallelism due to dependencies)
     for (int i = n - 1; i >= 0; i--) {
         x[i] = b[i];
         double sum = 0.0;
+
+        // Parallel reduction for sum
 #pragma omp parallel for reduction(+:sum)
         for (int j = i + 1; j < n; j++) {
             sum += A[i][j] * x[j];
         }
-        x[i] -= sum;
-        x[i] /= A[i][i];
+
+        x[i] = (x[i] - sum) / A[i][i];
     }
 }
 
-// ====================== MPI VERSION ======================
+// ==================== MPI IMPLEMENTATION ====================
 
-// MPI Gaussian Elimination with Row Distribution
-void gaussianEliminationMPI(vector<vector<double>>& A, vector<double>& b, int n,
-    int rank, int size) {
-    // Forward Elimination
+void mpiGaussianElimination(vector<vector<double>>& A, vector<double>& b, int n,
+    int rank, int numProcs) {
+    // Forward elimination
     for (int col = 0; col < n - 1; col++) {
-        // Process that owns the pivot row
-        int pivotOwner = col % size;
+        int pivotOwner = col % numProcs;
 
+        // Find pivot row
         int pivotRow = col;
         double maxVal = 0.0;
 
-        // Find local pivot
         if (rank == pivotOwner) {
             maxVal = abs(A[col][col]);
             for (int row = col + 1; row < n; row++) {
-                if (row % size == rank && abs(A[row][col]) > maxVal) {
+                if (row % numProcs == rank && abs(A[row][col]) > maxVal) {
                     maxVal = abs(A[row][col]);
                     pivotRow = row;
                 }
             }
         }
 
-        // Broadcast pivot row information
+        // Broadcast pivot row number
         MPI_Bcast(&pivotRow, 1, MPI_INT, pivotOwner, MPI_COMM_WORLD);
 
-        // Swap rows if necessary (simplified - only owner performs swap)
-        int swapOwner = pivotRow % size;
+        // Swap rows (simplified - only owner swaps)
+        int swapOwner = pivotRow % numProcs;
         if (rank == pivotOwner || rank == swapOwner) {
             if (pivotRow != col) {
                 swap(A[col], A[pivotRow]);
@@ -179,160 +155,164 @@ void gaussianEliminationMPI(vector<vector<double>>& A, vector<double>& b, int n,
 
         // Each process eliminates its own rows
         for (int row = col + 1; row < n; row++) {
-            if (row % size == rank) {
+            if (row % numProcs == rank) {
                 double factor = A[row][col] / A[col][col];
                 for (int j = col; j < n; j++) {
-                    A[row][j] -= factor * A[col][j];
+                    A[row][j] = A[row][j] - factor * A[col][j];
                 }
-                b[row] -= factor * b[col];
+                b[row] = b[row] - factor * b[col];
             }
         }
     }
 }
 
-// MPI Back Substitution
-void backSubstitutionMPI(const vector<vector<double>>& A, const vector<double>& b,
-    vector<double>& x, int n, int rank, int size) {
-    x.assign(n, 0.0);
-
+void mpiBackSubstitution(vector<vector<double>>& A, vector<double>& b,
+    vector<double>& x, int n, int rank, int numProcs) {
+    // Back substitution
     for (int i = n - 1; i >= 0; i--) {
-        int owner = i % size;
+        int owner = i % numProcs;
 
         if (rank == owner) {
             x[i] = b[i];
             for (int j = i + 1; j < n; j++) {
-                x[i] -= A[i][j] * x[j];
+                x[i] = x[i] - A[i][j] * x[j];
             }
-            x[i] /= A[i][i];
+            x[i] = x[i] / A[i][i];
         }
 
-        // Broadcast the computed x[i] to all processes
+        // Broadcast computed value to all processes
         MPI_Bcast(&x[i], 1, MPI_DOUBLE, owner, MPI_COMM_WORLD);
     }
 }
 
-// ====================== VERIFICATION & PERFORMANCE ANALYSIS ======================
+// ==================== VERIFICATION ====================
 
-// Verify solution by checking Ax = b
-double verifySolution(const vector<vector<double>>& A_original, const vector<double>& b_original,
-    const vector<double>& x, int n) {
+double checkError(vector<vector<double>>& A_orig, vector<double>& b_orig,
+    vector<double>& x, int n) {
     double maxError = 0.0;
     for (int i = 0; i < n; i++) {
         double sum = 0.0;
         for (int j = 0; j < n; j++) {
-            sum += A_original[i][j] * x[j];
+            sum += A_orig[i][j] * x[j];
         }
-        double error = abs(sum - b_original[i]);
-        maxError = max(maxError, error);
+        double error = abs(sum - b_orig[i]);
+        if (error > maxError) {
+            maxError = error;
+        }
     }
     return maxError;
 }
 
-// Main performance testing
+// ==================== MAIN PROGRAM ====================
+
 int main(int argc, char** argv) {
-    // Initialize MPI
     MPI_Init(&argc, &argv);
 
-    int rank, mpi_size;
+    int rank, numProcs;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
 
     vector<int> sizes = { 100, 500, 1000, 2000 };
 
     if (rank == 0) {
-        cout << "======================================================\n";
-        cout << "Gaussian Elimination: Serial vs OpenMP vs MPI\n";
-        cout << "======================================================\n\n";
+        cout << "========================================" << endl;
+        cout << "Gaussian Elimination Performance Test" << endl;
+        cout << "========================================" << endl << endl;
     }
 
     for (int n : sizes) {
         if (rank == 0) {
-            cout << "Matrix Size: " << n << " x " << n << "\n";
-            cout << "------------------------------------------------------\n";
+            cout << "Matrix Size: " << n << " x " << n << endl;
+            cout << "----------------------------------------" << endl;
         }
 
         // Create matrices
-        vector<vector<double>> A_original(n, vector<double>(n));
-        vector<double> b_original(n);
+        vector<vector<double>> A_orig(n, vector<double>(n));
+        vector<double> b_orig(n);
 
-        // Generate random system (only on rank 0)
+        // Generate system (rank 0)
         if (rank == 0) {
-            generateSystem(A_original, b_original, n);
+            generateSystem(A_orig, b_orig, n);
         }
 
-        // Broadcast matrix to all processes
+        // Broadcast to all processes
         for (int i = 0; i < n; i++) {
-            MPI_Bcast(A_original[i].data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast(A_orig[i].data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         }
-        MPI_Bcast(b_original.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(b_orig.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-        // ===== SERIAL VERSION (only rank 0) =====
-        double serialTime = 0.0, serialError = 0.0;
+        // SERIAL VERSION
+        double serialTime = 0.0;
+        double serialError = 0.0;
         if (rank == 0) {
-            vector<vector<double>> A_serial = A_original;
-            vector<double> b_serial = b_original;
+            vector<vector<double>> A_serial = A_orig;
+            vector<double> b_serial = b_orig;
             vector<double> x_serial(n);
 
             double start = omp_get_wtime();
-            gaussianEliminationSerial(A_serial, b_serial, n);
-            backSubstitutionSerial(A_serial, b_serial, x_serial, n);
+            serialGaussianElimination(A_serial, b_serial, n);
+            serialBackSubstitution(A_serial, b_serial, x_serial, n);
             serialTime = omp_get_wtime() - start;
 
-            serialError = verifySolution(A_original, b_original, x_serial, n);
+            serialError = checkError(A_orig, b_orig, x_serial, n);
         }
 
-        // ===== PARALLEL VERSION (OpenMP - only rank 0) =====
-        double parallelTime = 0.0, parallelError = 0.0;
+        // OPENMP VERSION
+        double openmpTime = 0.0;
+        double openmpError = 0.0;
         if (rank == 0) {
-            vector<vector<double>> A_parallel = A_original;
-            vector<double> b_parallel = b_original;
-            vector<double> x_parallel(n);
+            vector<vector<double>> A_openmp = A_orig;
+            vector<double> b_openmp = b_orig;
+            vector<double> x_openmp(n);
 
             double start = omp_get_wtime();
-            gaussianEliminationParallel(A_parallel, b_parallel, n);
-            backSubstitutionParallel(A_parallel, b_parallel, x_parallel, n);
-            parallelTime = omp_get_wtime() - start;
+            openmpGaussianElimination(A_openmp, b_openmp, n);
+            openmpBackSubstitution(A_openmp, b_openmp, x_openmp, n);
+            openmpTime = omp_get_wtime() - start;
 
-            parallelError = verifySolution(A_original, b_original, x_parallel, n);
+            openmpError = checkError(A_orig, b_orig, x_openmp, n);
         }
 
-        // ===== MPI VERSION (all processes) =====
-        vector<vector<double>> A_mpi = A_original;
-        vector<double> b_mpi = b_original;
+        // MPI VERSION
+        vector<vector<double>> A_mpi = A_orig;
+        vector<double> b_mpi = b_orig;
         vector<double> x_mpi(n);
 
         MPI_Barrier(MPI_COMM_WORLD);
         double mpiStart = MPI_Wtime();
 
-        gaussianEliminationMPI(A_mpi, b_mpi, n, rank, mpi_size);
-        backSubstitutionMPI(A_mpi, b_mpi, x_mpi, n, rank, mpi_size);
+        mpiGaussianElimination(A_mpi, b_mpi, n, rank, numProcs);
+        mpiBackSubstitution(A_mpi, b_mpi, x_mpi, n, rank, numProcs);
 
         MPI_Barrier(MPI_COMM_WORLD);
         double mpiTime = MPI_Wtime() - mpiStart;
 
         double mpiError = 0.0;
         if (rank == 0) {
-            mpiError = verifySolution(A_original, b_original, x_mpi, n);
+            mpiError = checkError(A_orig, b_orig, x_mpi, n);
         }
 
-        // ===== PERFORMANCE METRICS (only rank 0 prints) =====
+        // Print results (rank 0 only)
         if (rank == 0) {
-            double speedupOpenMP = serialTime / parallelTime;
-            double speedupMPI = serialTime / mpiTime;
             int numThreads = omp_get_max_threads();
+            double speedupOpenMP = serialTime / openmpTime;
+            double speedupMPI = serialTime / mpiTime;
             double efficiencyOpenMP = (speedupOpenMP / numThreads) * 100.0;
-            double efficiencyMPI = (speedupMPI / mpi_size) * 100.0;
+            double efficiencyMPI = (speedupMPI / numProcs) * 100.0;
 
-            cout << fixed << setprecision(6);
-            cout << "Serial Time:          " << serialTime << " seconds\n";
-            cout << "OpenMP Time:          " << parallelTime << " seconds (Threads: " << numThreads << ")\n";
-            cout << "MPI Time:             " << mpiTime << " seconds (Processes: " << mpi_size << ")\n";
-            cout << "OpenMP Speedup:       " << speedupOpenMP << "x (Efficiency: " << efficiencyOpenMP << "%)\n";
-            cout << "MPI Speedup:          " << speedupMPI << "x (Efficiency: " << efficiencyMPI << "%)\n";
-            cout << "Serial Error:         " << serialError << "\n";
-            cout << "OpenMP Error:         " << parallelError << "\n";
-            cout << "MPI Error:            " << mpiError << "\n";
-            cout << "\n";
+            cout << "Serial Time:      " << serialTime << " seconds" << endl;
+            cout << "OpenMP Time:      " << openmpTime << " seconds (Threads: "
+                << numThreads << ")" << endl;
+            cout << "MPI Time:         " << mpiTime << " seconds (Processes: "
+                << numProcs << ")" << endl;
+            cout << "OpenMP Speedup:   " << speedupOpenMP << "x (Efficiency: "
+                << efficiencyOpenMP << "%)" << endl;
+            cout << "MPI Speedup:      " << speedupMPI << "x (Efficiency: "
+                << efficiencyMPI << "%)" << endl;
+            cout << "Serial Error:     " << serialError << endl;
+            cout << "OpenMP Error:     " << openmpError << endl;
+            cout << "MPI Error:        " << mpiError << endl;
+            cout << endl;
         }
     }
 
