@@ -34,6 +34,7 @@ To run the distributed version, you must link the MS-MPI SDK:
     3. Linker Input: * Properties → Linker → Input → Additional Dependencies.
        - Add: msmpi.lib
     4. Environment Variables: * Ensure C:\Program Files\Microsoft MPI\Bin\ is in your System Path.
+    
 -------------------------------------------------------------------------------------------------------------------------------------------------------
 **HOW TO RUN CODE**
 Step 1: Run the project once
