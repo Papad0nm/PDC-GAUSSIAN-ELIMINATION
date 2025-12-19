@@ -19,14 +19,13 @@ Windows (Visual Studio):
 3. Navigate to C/C++ → Language
 4. Set Open MP Support to Yes
 5. Click Apply and OK
-
+-------------------------------------------------------------------------------------------------------------------------------------------------------
 **MPI setup**
 
 -------------------------------------------------------------------------------------------------------------------------------------------------------
 **HOW TO RUN CODE**
 Step 1: Run the project once
 Windows (Visual Studio):
-
 
 Step 2: Open Terminal and Navigate 
 
@@ -41,7 +40,7 @@ In this example:
 <path-to-project> = C:\Users\USER\source\repos\PDC-Gaussian-Elimination\GaussianEliminationProject\GaussianElimination
 
 Or if you're already in the project folder:
-bash   cd x64\Debug
+cd x64\Debug
 Note: The /d flag allows you to change drives if your project is on a different drive (D:, E:, etc.)
 
 **Run with Multiple MPI Processes (Recommended):**
