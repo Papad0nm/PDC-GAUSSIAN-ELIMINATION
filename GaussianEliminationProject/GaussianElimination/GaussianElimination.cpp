@@ -5,7 +5,19 @@
 #include <ctime>
 #include <omp.h>
 #include <mpi.h>
+#include <iomanip>
 using namespace std;
+
+struct ExperimentResult {
+    int matrixSize;
+    double serialTime;
+    double openmpTime;
+    double mpiTime;
+    double openmpSpeedup;
+    double mpiSpeedup;
+    double openmpEfficiency;
+    double mpiEfficiency;
+};
 
 // Generate random matrix and vector for the linear system
 void generateSystem(vector<vector<double>>& coefficientMatrix, vector<double>& constantsVector, int matrixSize) {
@@ -214,6 +226,7 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &totalProcesses);
 
     vector<int> testSizes = { 100, 500, 1000, 2000 };
+    vector<ExperimentResult> results;
 
     if (processRank == 0) {
         cout << "========================================" << endl;
@@ -314,7 +327,36 @@ int main(int argc, char** argv) {
             cout << "OpenMP Error:     " << openmpError << endl;
             cout << "MPI Error:        " << mpiError << endl;
             cout << endl;
+
+            results.push_back({ matrixSize, serialDuration, openmpDuration, mpiDuration, speedupOpenMP, speedupMPI, efficiencyOpenMP, efficiencyMPI });
         }
+    }
+
+    if (processRank == 0) {
+        cout << "==========================================================================================================================" << endl;
+        cout << "                                              Scalability Summary Table" << endl;
+        cout << "==========================================================================================================================" << endl;
+        cout << left << setw(15) << "Matrix Size" 
+             << setw(18) << "Serial Time (s)" 
+             << setw(25) << "OpenMP Parallel Time (s)" 
+             << setw(22) << "MPI Parallel Time (s)" 
+             << setw(18) << "OpenMP Speedup" 
+             << setw(15) << "MPI Speedup" 
+             << setw(20) << "OpenMP Efficiency" 
+             << setw(18) << "MPI Efficiency" << endl;
+        cout << "--------------------------------------------------------------------------------------------------------------------------" << endl;
+        
+        for (const auto& res : results) {
+            cout << left << setw(15) << res.matrixSize 
+                 << setw(18) << fixed << setprecision(4) << res.serialTime 
+                 << setw(25) << res.openmpTime 
+                 << setw(22) << res.mpiTime 
+                 << setw(18) << res.openmpSpeedup 
+                 << setw(15) << res.mpiSpeedup 
+                 << setw(20) << res.openmpEfficiency 
+                 << setw(18) << res.mpiEfficiency << endl;
+        }
+        cout << "==========================================================================================================================" << endl;
     }
 
     MPI_Finalize();
