@@ -27,13 +27,13 @@ To run the distributed version, you must link the MS-MPI SDK:
     - Download and install msmpisetup.exe and msmpisdk.msi from [Microsoft MPI Downloads](https://www.microsoft.com/en-us/download/details.aspx?id=57467).
 
 *B. Project Configuration*
-    1. Include Directories: * Properties → C/C++ → General → Additional Include Directories.
-       - Add: C:\Program Files (x86)\Microsoft SDKs\MPI\Include
-    2. Library Directories: * Properties → Linker → General → Additional Library Directories.
-       - Add: C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64
-    3. Linker Input: * Properties → Linker → Input → Additional Dependencies.
-       - Add: msmpi.lib
-    4. Environment Variables: * Ensure C:\Program Files\Microsoft MPI\Bin\ is in your System Path.
+1. Include Directories: * Properties → C/C++ → General → Additional Include Directories.
+   - Add: C:\Program Files (x86)\Microsoft SDKs\MPI\Include
+2. Library Directories: * Properties → Linker → General → Additional Library Directories.
+   - Add: C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64
+3. Linker Input: * Properties → Linker → Input → Additional Dependencies.
+   - Add: msmpi.lib
+4. Environment Variables: * Ensure C:\Program Files\Microsoft MPI\Bin\ is in your System Path.
     
 -------------------------------------------------------------------------------------------------------------------------------------------------------
 **HOW TO RUN CODE**
